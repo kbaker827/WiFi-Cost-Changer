@@ -7,8 +7,10 @@ const notifier = new WindowsToaster()
 
 const icon = path.join(__dirname, 'assets', 'icon.png')
 
+let ssid
+
 const toUnrestricted = () => {
-  cmd.get(`netsh wlan set profileparameter name="4G Router" cost=Unrestricted`,
+  cmd.get(`netsh wlan set profileparameter name="${ssid}" cost=Unrestricted`,
   (err) => {
     if(err) return errLogger(err)
     notify('unrestricted')
@@ -16,7 +18,7 @@ const toUnrestricted = () => {
 }
 
 const toFixed = () => {
-  cmd.get(`netsh wlan set profileparameter name="4G Router" cost=Fixed`,
+  cmd.get(`netsh wlan set profileparameter name="${ssid}" cost=Fixed`,
   (err) => {
     if(err) return errLogger(err)
     notify('fixed')
@@ -24,26 +26,45 @@ const toFixed = () => {
 }
 
 const onStart = () => {
-  let h = new Date().getHours()
-  if ( h < 8 ) {
-    toUnrestricted()
-  } else {
-    toFixed()
-  }
+  cmd.get(`netsh wlan show interfaces | findstr /R /C:\" SSID\"`,  //get SSID
+  (err, data) => {
+    if(err) return errLogger(err, 'ssiderr')
+    ssid = data.split(':')[1].trim()
+
+    let h = new Date().getHours()
+    if ( h < 8 ) {
+      toUnrestricted()
+    } else {
+      toFixed()
+    }
+
+    schedule.scheduleJob('0 0 * * *', toUnrestricted) // Changes to unrestricted at 0000h
+    schedule.scheduleJob('0 8 * * *', toFixed)        // Changes to fixed at 0800h
+  })
+  
 }
 
-const errLogger = (err) => {
+const errLogger = (err, code='stderr') => {
   let d = new Date()
   let error = `${d.getMonth()}:${d.getDate()}/${d.getHours()}:${d.getMinutes()}:${d.getSeconds()} \n ${err} \n \n`
-  fs.appendFile(path.join(__dirname, 'log.txt'), error, (err) => {
-    //wrote a function to remove console.log, writing a console.log to handle error of that function lol
-    if(err) throw err
-    notify('', true)    
+  fs.appendFile(path.join(__dirname, 'log.txt'), error, () => {
+    notify('', code)
   })  
 }
 
-const notify = (state, err = false) => {
-  let values = err ? {t: 'Oops :(', m: `Error occured, check log.txt`} : {t: 'WiFi Cost Changed', m: `Connection changed to ${state} state`}
+const notify = (state, err = 0) => {
+  let values
+  switch(err) {
+    case 0:
+      values = {t: 'WiFi Cost Changed', m: `Connection changed to ${state} state`}
+      break
+    case 'stderr':
+      values = {t: 'Oops :(', m: `Error occured, check log.txt`}
+      break
+    case 'ssiderr':
+      values = {t: 'No SSID', m: `Something is wrong. Are you connected to your wifi?.`}
+      break
+  }
   notifier.notify({
     title: values.t,
     message: values.m,
@@ -55,8 +76,6 @@ const notify = (state, err = false) => {
 }
 
 onStart()
-schedule.scheduleJob('0 0 * * *', toUnrestricted)
-schedule.scheduleJob('0 8 * * *', toFixed)
 
 // Fire a quick time check when windows wakeup after sleep/hibernation
 let lastTime = new Date().getTime()
