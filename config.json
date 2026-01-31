@@ -1,0 +1,19 @@
+{
+  "schedule": {
+    "unrestrictedStartHour": 0,
+    "unrestrictedEndHour": 8
+  },
+  "logging": {
+    "maxLogSizeBytes": 1048576,
+    "maxLogFiles": 5
+  },
+  "notifications": {
+    "enabled": true,
+    "sound": false
+  },
+  "sleepDetection": {
+    "pollIntervalMs": 2000,
+    "wakeThresholdMs": 10000,
+    "wakeDelayMs": 12000
+  }
+}
